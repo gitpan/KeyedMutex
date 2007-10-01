@@ -7,11 +7,16 @@ use Digest::MD5 qw/md5/;
 use IO::Socket::INET;
 use IO::Socket::UNIX;
 use POSIX qw/:errno_h/;
-use Regexp::Common qw/net/;
+use Socket qw/IPPROTO_TCP TCP_NODELAY/;
 
 package KeyedMutex;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
+
+my $MSG_NOSIGNAL = 0;
+eval {
+    $MSG_NOSIGNAL = Socket::MSG_NOSIGNAL;
+};
 
 use constant DEFAULT_SOCKPATH => '/tmp/keyedmutexd.sock';
 use constant KEY_SIZE         => 16;
@@ -20,36 +25,31 @@ sub new {
     my ($klass, $opts) = @_;
     $klass = ref($klass) || $klass;
     $opts ||= {};
-    my $sock;
-    my $peer = $opts->{sock} || DEFAULT_SOCKPATH;
-    if ($peer =~ /^(?:|($RE{net}{IPv4}):)(\d+)$/) {
-        my ($host, $port) = ($1 || '127.0.0.1', $2);
-        $sock = IO::Socket::INET->new(
-            PeerHost => $host,
-            PeerPort => $port,
-            Proto    => 'tcp',
-        );
-    } else {
-        $sock = IO::Socket::UNIX->new(
-            Type => SOCK_STREAM,
-            Peer => $peer,
-        );
-    }
-    die 'failed to connect to keyedmutexd' unless $sock;
-    bless {
-        sock => $sock,
-        locked => undef,
+    my $self = bless {
+        sock           => undef,
+        locked         => undef,
+        auto_reconnect =>
+            defined $opts->{auto_reconnect} ? $opts->{auto_reconnect} : 1,
+        _peer          => $opts->{sock} || DEFAULT_SOCKPATH,
     }, $klass;
+    $self->_connect();
+    $self;
 }
 
 sub DESTROY {
     my $self = shift;
-    $self->{sock}->close;
+    $self->{sock}->close if $self->{sock};
 }
 
 sub locked {
     my $self = shift;
     $self->{locked};
+}
+
+sub auto_reconnect {
+    my $self = shift;
+    $self->{auto_reconnect} = shift if @_;
+    $self->{auto_reconnect};
 }
 
 sub lock {
@@ -60,12 +60,21 @@ sub lock {
     
     # send key
     my $hashed_key = md5($key);
-    $self->{sock}->syswrite($hashed_key, KEY_SIZE) == KEY_SIZE
-        or die 'connection error';
+    $self->_connect(1) unless $self->{sock};
+    unless ($self->_send($hashed_key, KEY_SIZE)) {
+        $self->_connect(1);
+        $self->_send($hashed_key, KEY_SIZE)
+            or die 'communication error';
+    }
     # wait for response
     my $res;
     while ($self->{sock}->sysread($res, 1) != 1) {
-        die 'connection error' unless $! == EINTR;
+        if ($! != EINTR) {
+            $self->{sock}->close;
+            $self->{sock} = undef;
+            $res = 'R';
+            last;
+        }
     }
     $self->{locked} = $res eq 'O';
     return $self->{locked};
@@ -77,10 +86,50 @@ sub release {
     # check state
     die "not holding a lock\n" unless $self->{locked};
     
-    $self->{sock}->syswrite('R', 1) == 1
-        or die 'connection error';
+    unless ($self->_send('R', 1)) {
+        $self->{sock}->close;
+        $self->{sock} = undef;
+    }
     $self->{locked} = undef;
     1;
+}
+
+sub _connect {
+    my ($self, $is_reconnect) = @_;
+    
+    if ($is_reconnect) {
+        die 'communication error' unless $self->{auto_reconnect};
+        if ($self->{sock}) {
+            $self->{sock}->close;
+            $self->{sock} = undef;
+        }
+    }
+    
+    if ($self->{_peer} =~ /^(?:|(.*):)(\d+)$/) {
+        my ($host, $port) = ($1 || '127.0.0.1', $2);
+        $self->{sock} = IO::Socket::INET->new(
+            PeerHost => $host,
+            PeerPort => $port,
+            Proto    => 'tcp',
+        ) or die 'failed to connect to keyedmutexd';
+        setsockopt($self->{sock}, IPPROTO_TCP, TCP_NODELAY, 1)
+            or die 'failed to set TCP_NODELAY';
+    } else {
+        $self->{sock} = IO::Socket::UNIX->new(
+            Type => SOCK_STREAM,
+            Peer => $self->{_peer},
+        ) or die 'failed to connect to keyedmutexd';
+    }
+}
+
+sub _send {
+    my ($self, $data, $size) = @_;
+    local $SIG{PIPE} = 'IGNORE' unless $MSG_NOSIGNAL;
+    my $ret = undef;
+    eval {
+        $ret = $self->{sock}->send($data, $MSG_NOSIGNAL) == $size;
+    };
+    $ret;
 }
 
 1;
@@ -121,6 +170,10 @@ Following parameters are recognized.
 
 Optional.  Path to a unix domain socket or a tcp port on which C<keyedmutexd> is running.  Defaults to /tmp/keyedmutexd.sock.
 
+=head2 auto_rennocet
+
+Optional.  Whether or not to automatically reconnect to server on communication failure.  Default is on.
+
 =head1 METHODS
 
 =head2 lock($key)
@@ -134,6 +187,10 @@ Releases the lock.
 =head2 locked
 
 Returns if the object is currently holding a lock.
+
+=head2 auto_reconnect
+
+Sets or retrieves auto_reconnect flag.
 
 =head1 SEE ALSO
 

@@ -1,5 +1,10 @@
 Revision history for Perl extension KeyedMutex.
 
+0.02  Mon Oct 01 17:00:00 2007
+        - added auto_reconnect feature
+	- optimization of keyedmutexd
+	- added capability to set timeout of owners (default: 30 secs)
+
 0.01  Thu Sep 27 09:22:20 2007
         - initial release
 

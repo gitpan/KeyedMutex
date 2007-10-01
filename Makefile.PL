@@ -21,6 +21,7 @@ package MY;
 sub top_targets {
     my $self = shift;
     my $o = $self->SUPER::top_targets();
+    $o =~ s/^all\s*:+.*/$& copy_keyedmutexd_man/m;
     $o =~ s/^pure_all\s*:+.*/$& keyedmutexd/m;
     $o;
 }
@@ -36,6 +37,9 @@ sub postamble {
     my $make  =<< 'EOT';
 keyedmutexd:
     cd keyedmutexd && $(MAKE) all
+
+copy_keyedmutexd_man:
+    cp -f keyedmutexd/keyedmutexd.1 $(INST_MAN1DIR)
 
 clean_keyedmutexd:
     cd keyedmutexd && $(MAKE) clean

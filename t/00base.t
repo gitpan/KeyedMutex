@@ -7,8 +7,6 @@ use constant SOCKPATH => 't/keyedmutexd.sock';
 
 BEGIN { use_ok('KeyedMutex'); }
 
-unlink SOCKPATH;
-
 my($km, $km2, $server_pid);
 
 eval {
@@ -24,7 +22,7 @@ if ($server_pid = fork) {
 } else {
     close STDOUT;
     open STDOUT, '>', '/dev/null' or die 'failed to reopen stdout';
-    exec 'keyedmutexd/keyedmutexd -s ' . SOCKPATH;
+    exec 'keyedmutexd/keyedmutexd -f -s ' . SOCKPATH;
     die 'failed to exec keyedmutexd';
 }
 sleep 5;
