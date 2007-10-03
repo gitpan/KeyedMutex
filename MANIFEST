@@ -5,6 +5,7 @@ README
 keyedmutexd/keyedmutexd.1
 keyedmutexd/keyedmutexd.c
 keyedmutexd/Makefile
+lib/KeyedMutex/Lock.pm
 lib/KeyedMutex.pm
 t/00base.t
 t/pod-coverage.t

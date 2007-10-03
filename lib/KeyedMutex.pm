@@ -9,9 +9,11 @@ use IO::Socket::UNIX;
 use POSIX qw/:errno_h/;
 use Socket qw/IPPROTO_TCP TCP_NODELAY/;
 
+use KeyedMutex::Lock;
+
 package KeyedMutex;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 my $MSG_NOSIGNAL = 0;
 eval {
@@ -53,7 +55,7 @@ sub auto_reconnect {
 }
 
 sub lock {
-    my ($self, $key) = @_;
+    my ($self, $key, $use_object) = @_;
     
     # check state
     die "already holding a lock\n" if $self->{locked};
@@ -76,8 +78,9 @@ sub lock {
             last;
         }
     }
-    $self->{locked} = $res eq 'O';
-    return $self->{locked};
+    return unless $res eq 'O';
+    $self->{locked} = 1;
+    return $use_object ? KeyedMutex::Lock->_new($self) : 1;
 }
 
 sub release {
@@ -142,6 +145,7 @@ KeyedMutex - An interprocess keyed mutex
 
 =head1 SYNOPSIS
 
+  # start server
   % keyedmutexd >/dev/null &
   
   use KeyedMutex;
@@ -149,11 +153,10 @@ KeyedMutex - An interprocess keyed mutex
   my $km = KeyedMutex->new;
   
   until ($value = $cache->get($key)) {
-    if ($km->lock($key)) {
-      # locked, read from DB
+    if (my $lock = $km->lock($key, 1)) {
+      #locked read from DB
       $value = get_from_db($key);
       $cache->set($key, $value);
-      $km->release;
       last;
     }
   }
@@ -170,19 +173,21 @@ Following parameters are recognized.
 
 Optional.  Path to a unix domain socket or a tcp port on which C<keyedmutexd> is running.  Defaults to /tmp/keyedmutexd.sock.
 
-=head2 auto_rennocet
+=head2 auto_reconnect
 
 Optional.  Whether or not to automatically reconnect to server on communication failure.  Default is on.
 
 =head1 METHODS
 
-=head2 lock($key)
+=head2 lock($key, [ use_object ])
 
-Tries to obtain a mutex lock for given key.  If successful, the client should later on release the lock by calling C<release>.  A return value undef means some other client that held the lock has released it.
+Tries to obtain a mutex lock for given key.
+When the use_object flag is not set (or omitted), the method would return 1 if successful, or undef if not.  If successful, the client should later on release the lock by calling C<release>.  A return value undef means some other client that held the lock has released it.
+When the use_object flag is being set, the method would return a C<KeyedMutex::Lock> object when successful.  The lock would be automatically released when the lock object is being destroyed.
 
 =head2 release
 
-Releases the lock.
+Releases the lock acquired by a procedural-style lock (i.e. use_object flag not being set).
 
 =head2 locked
 

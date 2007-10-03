@@ -1,5 +1,10 @@
 Revision history for Perl extension KeyedMutex.
 
+0.03  Wed Oct 03 11:00:00 2007
+        - added oo-style lock
+        - fix test error that occurred when previous test left the sock file unremoved
+        - fix typos in pod
+
 0.02  Mon Oct 01 17:00:00 2007
         - added auto_reconnect feature
 	- optimization of keyedmutexd

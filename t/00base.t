@@ -9,6 +9,8 @@ BEGIN { use_ok('KeyedMutex'); }
 
 my($km, $km2, $server_pid);
 
+unlink SOCKPATH;
+
 eval {
     $km = KeyedMutex->new({
         sock => SOCKPATH,
