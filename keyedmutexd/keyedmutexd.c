@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 #define PROGNAME "keyedmutexd"
-#define VERSION "0.02"
+#define VERSION "0.04"
 
 #define DEFAULT_SOCKPATH "/tmp/" PROGNAME ".sock"
 #define DEFAULT_CONNS_SIZE 32
@@ -58,7 +58,7 @@ static int exit_loop;
 static struct sockaddr_un sun;
 static struct sockaddr_in sin;
 static int use_tcp;
-static int timeout_secs;
+static int timeout_secs = DEFAULT_TIMEOUT_SECS;
 static int force;
 static int print_info;
 static int no_log;
@@ -182,7 +182,7 @@ static void loop(void)
     
     fd_set readfds;
     struct timeval tv = { 60, 900 * 1000 };
-    int i, noconn_exists = conns_length < conns_size;
+    int i, num_conns = 0;
     time_t now = time(NULL);
     
     /* setup readfds and set noconn_exists */
@@ -199,13 +199,13 @@ static void loop(void)
       case CS_KEYREAD:
       case CS_NONOWNER:
 	FD_SET(i + listen_fd + 1, &readfds);
+	num_conns++;
 	break;
       case CS_NOCONN:
-	noconn_exists = 1;
 	break;
       }
     }
-    if (noconn_exists) {
+    if (num_conns < conns_size) {
       FD_SET(listen_fd, &readfds);
     }
     
@@ -215,19 +215,20 @@ static void loop(void)
     
     /* accept new connections */
     if (FD_ISSET(listen_fd, &readfds)) {
-      int fd;
       do {
-	fd = accept(listen_fd, NULL, NULL);
-	if (fd != -1) {
-	  nodelay(fd);
-	  i = fd - listen_fd - 1;
-	  assert(0 <= i && i < conns_size);
-	  assert(conn_states[i] == CS_NOCONN);
-	  setup_conn(i);
-	  conns_length = MAX(i + 1, conns_length);
-	  LOG(fd, "connected", NULL);
+	int fd = accept(listen_fd, NULL, NULL);
+	if (fd == -1) {
+	  break;
 	}
-      } while (fd != -1 && fd != listen_fd + conns_size);
+	nodelay(fd);
+	i = fd - listen_fd - 1;
+	assert(0 <= i && i < conns_size);
+	assert(conn_states[i] == CS_NOCONN);
+	setup_conn(i);
+	conns_length = MAX(i + 1, conns_length);
+	LOG(fd, "connected", NULL);
+	num_conns++;
+      } while (num_conns < conns_size);
     }
     
     /* read data */

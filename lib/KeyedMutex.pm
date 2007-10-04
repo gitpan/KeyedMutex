@@ -13,7 +13,7 @@ use KeyedMutex::Lock;
 
 package KeyedMutex;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 my $MSG_NOSIGNAL = 0;
 eval {
@@ -55,7 +55,7 @@ sub auto_reconnect {
 }
 
 sub lock {
-    my ($self, $key, $use_object) = @_;
+    my ($self, $key, $use_raii) = @_;
     
     # check state
     die "already holding a lock\n" if $self->{locked};
@@ -80,7 +80,7 @@ sub lock {
     }
     return unless $res eq 'O';
     $self->{locked} = 1;
-    return $use_object ? KeyedMutex::Lock->_new($self) : 1;
+    return $use_raii ? KeyedMutex::Lock->_new($self) : 1;
 }
 
 sub release {
@@ -179,15 +179,15 @@ Optional.  Whether or not to automatically reconnect to server on communication 
 
 =head1 METHODS
 
-=head2 lock($key, [ use_object ])
+=head2 lock($key, [ use_raii ])
 
 Tries to obtain a mutex lock for given key.
-When the use_object flag is not set (or omitted), the method would return 1 if successful, or undef if not.  If successful, the client should later on release the lock by calling C<release>.  A return value undef means some other client that held the lock has released it.
-When the use_object flag is being set, the method would return a C<KeyedMutex::Lock> object when successful.  The lock would be automatically released when the lock object is being destroyed.
+When the use_raii flag is not set (or omitted), the method would return 1 if successful, or undef if not.  If successful, the client should later on release the lock by calling C<release>.  A return value undef means some other client that held the lock has released it.
+When the use_raii flag is being set, the method would return a C<KeyedMutex::Lock> object when successful.  The lock would be automatically released when the lock object is being destroyed.
 
 =head2 release
 
-Releases the lock acquired by a procedural-style lock (i.e. use_object flag not being set).
+Releases the lock acquired by a procedural-style lock (i.e. use_raii flag not being set).
 
 =head2 locked
 

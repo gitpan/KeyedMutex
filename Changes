@@ -1,5 +1,9 @@
 Revision history for Perl extension KeyedMutex.
 
+0.04  Thu Oct 04 14:10:00 2007
+        - timeout was set to 0 unless specified in command line
+	- fix a bug that accepted too many connections leading to a assertion failure
+
 0.03  Wed Oct 03 11:00:00 2007
         - added oo-style lock
         - fix test error that occurred when previous test left the sock file unremoved
