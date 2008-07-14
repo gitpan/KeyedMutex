@@ -1,12 +1,13 @@
 Changes
-Makefile.PL
-MANIFEST
-README
 keyedmutexd/keyedmutexd.1
 keyedmutexd/keyedmutexd.c
-keyedmutexd/Makefile
-lib/KeyedMutex/Lock.pm
 lib/KeyedMutex.pm
+lib/KeyedMutex/Lock.pm
+Makefile.PL
+MANIFEST
+META.yml			Module meta-data (added by MakeMaker)
+README
 t/00base.t
+t/03timeout.t
+t/04object.t
 t/pod-coverage.t
-META.yml                                 Module meta-data (added by MakeMaker)

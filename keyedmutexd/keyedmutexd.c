@@ -120,8 +120,8 @@ INLINE int key2i(const char* _key)
   int ikey = 0;
   
   do {
-    ikey |= *--key;
-  } while (key == (void*)_key);
+    ikey ^= *--key;
+  } while (key != (void*)_key);
   
   return ikey & CS_IKEY_MASK;
 }

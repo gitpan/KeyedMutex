@@ -13,7 +13,7 @@ use KeyedMutex::Lock;
 
 package KeyedMutex;
 
-our $VERSION = '0.04';
+our $VERSION = '0.06';
 
 my $MSG_NOSIGNAL = 0;
 eval {
@@ -130,6 +130,7 @@ sub _send {
     local $SIG{PIPE} = 'IGNORE' unless $MSG_NOSIGNAL;
     my $ret = undef;
     eval {
+        no warnings;
         $ret = $self->{sock}->send($data, $MSG_NOSIGNAL) == $size;
     };
     $ret;
